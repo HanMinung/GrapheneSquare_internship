@@ -1,8 +1,6 @@
-# GrapheneSquare_intership
+# 라미 공정 후 그래핀의 비전센서 기반 품질 평가
 
 @ Author : HanMinwoong
-
-@ Collaborator : ChoiSeungmoon, KimHanmin, AhnKyeonhil
 
 @ project period : 2024.1.8 - 2024.1.26
 
@@ -29,4 +27,22 @@
 5) AL 프로파일 I형 브라켓 : 2040 용
 6) 육각렌치 볼트 : M4 * 10 [mm] 규격
 7) 후에, 육각렌치 볼트 및 스프링 너트의 결합부는 공차를 고려하여 약 pi5 또는 pi6 정도로 선정/제작을 진행했다.
+
+
+
+### 1.2. 카메라 결합부 제작 : 높낮이 조절
+
+실제로, assembly를 통해 스테이지를 제작하더라도, 카메라 센서를 완전히 설치하기 전까지는 화각을 고려한 적절한 카메라의 적절한 위치 설정은 어렵다. 그렇기 때문에, 슬라이딩 방식으로 카메라 홀더를 제작하여, 후에 모든 부품을 조립한 뒤에, 카메라 센서의 높낮이를 조절할 수 있는 방식을 고려했다. 서로 결합이 가능하게끔, holder_slider 부품 및 webcam_holder 부품을 각각 제작했다. 각 부품에 대한 3D 형상은 (holder_slider, webcam_holder 순서)은 다음과 같다.
+
+​                                                 <img src="https://github.com/HanMinung/DLIP/assets/99113269/850c975d-9132-4937-81f1-43ce400892a2" alt="image" style="zoom:50%;" /><img src="C:\Users\hanmu\AppData\Roaming\Typora\typora-user-images\image-20240111142812006.png" alt="image-20240111142812006" style="zoom:50%;" />
+
+
+
+
+
+
+
+
+
+
 
