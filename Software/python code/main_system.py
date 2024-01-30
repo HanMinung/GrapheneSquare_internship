@@ -1,12 +1,13 @@
 from module import *
 
 num_assemble   =   5                            # 합치고자 하는 이미지의 수
-delay_time     =   10                           # 모터가 구동하고 이미지를 저장하기 전까지 주는 delay
+delay_time     =   7                            # 모터가 구동하고 이미지를 저장하기 전까지 주는 delay
 
 img_width      =   3840                         # 이미지는 4K로 처리
 img_height     =   2160
+roi_y          =   1500                         # 다섯 번째 이미지는 1500 픽셀 y값 까지 roi를 설정
 
-arduino        = serial.Serial(port = 'COM4', baudrate = 9600)
+arduino        = serial.Serial(port = 'COM4', baudrate = 9600)      # serial 통신을 위한 baudrate는 9600으로 설정
 
 # variable definition
 # - capture flag : 이미지를 저장할지에 대한 여부
@@ -72,7 +73,7 @@ class webcam(control) :                         # 모터 구동 class를 webcam 
         
         self.cap  =  cv.VideoCapture(cv.CAP_DSHOW + 1)      # 연결된 USB 카메라를 연결
         
-        self.cap.set(cv.CAP_PROP_AUTOFOCUS, 0.19)
+        self.cap.set(cv.CAP_PROP_AUTOFOCUS, 0.15)
         
         self.cap.set(cv.CAP_PROP_FRAME_WIDTH , img_width)   # 4K 해상도 설정
         self.cap.set(cv.CAP_PROP_FRAME_HEIGHT, img_height)
@@ -105,45 +106,48 @@ class webcam(control) :                         # 모터 구동 class를 webcam 
         
         global capture_flag, img_captured                   
         
-        if capture_flag and not img_captured :              # 이미지를 한 번만 저장하기 위한 변수            
+        if capture_flag and not img_captured :              # 이미지를 한 번만 저장하기 위한 조건 변수들
             
-            # 현재 스테이트의 프레임을 리스트에 저장
-            if len (self.org_img_list) == 4  :  self.org_img_list.append(self.frame[0 : 1500, 0 : 3840])            
             
-            else  :  self.org_img_list.append(self.frame)
+            if len (self.org_img_list) == 4  :  self.org_img_list.append(self.frame[0 : roi_y, 0 : 3840])      # 다섯 번째는 잘라서 저장      
             
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")      # 파일명은 현재 시간을 기준으로 저장
-        
-            filename = f"./image_evaluation/{timestamp}.png" 
+            else  :  self.org_img_list.append(self.frame)                            # 현재 스테이트의 프레임을 리스트에 저장
+                
+            # 아래 세줄 : 각 위치에서의 개별 이미지를 저장하고 싶다면 주석해제 (optional)    
+            
+            # timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")      # 파일명은 현재 시간을 기준으로 저장
 
-            cv.imwrite(filename, self.frame)                # 이미지를 정해진 경로에 저장
-            
+            # filename = f"./image_evaluation/{timestamp}.png" 
+
+            # cv.imwrite(filename, self.frame)                                        # 이미지를 정해진 경로에 저장
+                        
             capture_flag = False                            # 저장 완료후에는 각 flag들을 초기화
             
             img_captured = True
             
-        self.print_state()                                  # 현재 FLAG 들의 정보를 보기 위한 함수
-            
     
     def evaluate_sample(self) :                             # 저장된 이미지에 대해 품질 평가를 진행하는 함수
         
-        # 픽셀 크기 및 그리그 크기 지정
-        pixel_size              =   10
-        grid_size               =   60
-        diff_threshold          =   6.5
+        pixel_size              =   12                      # 픽셀 사이즈   : 12로 설정
+        grid_size               =   60                      # 그리드 사이즈 : 최종 이미지에서 그리드를 그리기 위한 격자 크기 (optional)
+        diff_threshold          =   7.5                     # 픽셀 intensity 차이로 결함을 감지하기 위한 threshold
         
-        highlighted_pixel_ratio =   0
-        total_pixel_ratio       =   0
         
-        for img in self.org_img_list :
+        weights = {1: 10, 2: 20, 3: 40, 4: 20, 5: 10}       # 각 샘플의 그레이드를 매기기 위한 변수들
+        overall_score = 100
+        dcount = 0
+
+        for img in self.org_img_list :                      # 리스트에 저장된 이미지를 기반으로 하나씩 처리
             
-            gray_values = []
+            img_height, img_width, _ = img.shape            # 각 이미지 별로 img의 크기, 너비를 얻어온다 (마지막 이미지는 크기가 다르기 때문에 필요)
             
-            gray_img    = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+            gray_values = []                                
             
-            blurred_img = cv.GaussianBlur(gray_img, (5,5), 0)
+            gray_img    = cv.cvtColor(img, cv.COLOR_BGR2GRAY)   # 먼저, 이미지에 대해 grayscale로 변환
             
-            for y in range(0, img_height, pixel_size) :
+            blurred_img = cv.GaussianBlur(gray_img, (5,5), 0)   # 그 후, 노이즈 영향 제거를 위한 가우시안 블러 처리를 진행
+            
+            for y in range(0, img_height, pixel_size) :         # 이중 반복문을 통해, 각 그룹마다의 intensity 평균값을 계산
                 
                 for x in range(0, img_width, pixel_size) :
                     
@@ -153,13 +157,13 @@ class webcam(control) :                         # 모터 구동 class를 webcam 
                     
                     gray_values.append(gray_value)
             
-            gray_values = np.array(gray_values).reshape(img_height // pixel_size, img_width // pixel_size)
+            gray_values = np.array(gray_values).reshape(img_height // pixel_size, img_width // pixel_size)      # 다시 배열을 reshape
             
             highlighted_image = cv.cvtColor(blurred_img, cv.COLOR_GRAY2BGR)  # 가우시안 블러가 적용된 이미지를 BGR로 확장
             
-            highlighted_pixel_count = 0
+            highlighted_pixel_count = 0                 
             
-            for y in range(1, img_height // pixel_size - 1) :
+            for y in range(1, img_height // pixel_size - 1) :   # 이중 반복문을 통해, 주변 8개의 비교군과 강도값 차이를 계산했을 때, 그 차이가 설정한 임계값을 넘으면 결함으로 감지를 진행
                 
                 for x in range(1, img_width // pixel_size - 1) :
                     
@@ -172,7 +176,8 @@ class webcam(control) :                         # 모터 구동 class를 webcam 
                         highlighted_image[y * pixel_size:(y + 1) * pixel_size, x * pixel_size:(x + 1) * pixel_size] = [0, 0, 255]
                         
                         highlighted_pixel_count += 1
-                        
+            
+            # 이미지 그리드 나누기 (optional한 과정) : for 문 두개로 구성
             for i in range(0, img_height, grid_size) :
                 
                 cv.line(highlighted_image, (0, i), (img_width, i), (0, 255, 0), 1)
@@ -181,22 +186,49 @@ class webcam(control) :                         # 모터 구동 class를 webcam 
                 
                 cv.line(highlighted_image, (j, 0), (j, img_height), (0, 255, 0), 1)
             
-            total_pixel_count = (img_height // pixel_size) * (img_width // pixel_size)
+            self.eval_img_list.append(highlighted_image)        # 각 위치에서의 샘플에 대해 평가한 이미지를 새로운 리스트에 저장
             
-            highlighted_pixel_ratio = highlighted_pixel_count / total_pixel_count
-
-            total_pixel_ratio += highlighted_pixel_ratio
-            
-            self.eval_img_list.append(highlighted_image)
-        
         timestamp = timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            
-        print(f"\n\nDEFECT RATIO IN SAMPLE : {total_pixel_ratio}")
         
         filename = f"./image_evaluation/{timestamp}.png"
             
-        cv.imwrite(filename, np.vstack(self.eval_img_list))
+        cv.imwrite(filename, np.vstack(self.eval_img_list))     # 새로운 리스트의 데이터를 세로로 이어서 최종 이미지를 저장
         
+        height, width, _ = np.vstack(self.eval_img_list).shape  # 최종적인 sample의 grading 과정 
+        
+        print("\n-------------- 샘플 그레이드 평과 결과 --------------\n")
+        
+        for part_number in range(1, 6) :
+            
+            part_start = (part_number - 1) * (height // 5)
+            part_end = part_number * (height // 5)
+
+            part_image = np.vstack(self.eval_img_list)[part_start:part_end, :]
+            part_highlighted_count = np.sum(part_image[:, :, 2] == 255)
+            part_highlighted_ratio = part_highlighted_count / ((height // 5) * width // pixel_size)
+
+            print(f'Part {part_number}: 하이라이트된 비율 = {part_highlighted_ratio * 100:.2f}%')
+
+            if (part_highlighted_ratio > 0) : dcount = 1
+                
+            overall_score -= dcount * weights[part_number]
+            
+            dcount = 0
+
+            overall_score = max(overall_score, 0)
+
+        overall_grade = ''
+        
+        if overall_score >= 90 : overall_grade = 'A'
+            
+        elif 70 <= overall_score < 90 : overall_grade = 'B'
+            
+        elif 50 <= overall_score < 70 : overall_grade = 'C'
+            
+        else : overall_grade = 'D'
+
+        print(f'\n점수: {overall_score:.2f}, 샘플 등급: {overall_grade}')
+            
     
     def save_org_sample(self) :                                 # 원본 이미지를 합친 하나의 이미지 / 평가된 이미지를 합친 하나의 이미지를 저장하는 함수 (optional)
             
@@ -214,19 +246,6 @@ class webcam(control) :                         # 모터 구동 class를 webcam 
         self.org_img_list  = []                             # 각 리스트를 초기화
         
         self.eval_img_list = []
-    
-    def print_state(self) :
-            
-        self.print_cnt += 1
-        
-        if self.print_cnt % 30 == 0 :    
-            
-            print("\n-------------- Flag state ------------\n    ")
-            print(f"MOTOR LOCATION  : {self.motor_loc}           ")
-            print(f"IMAGE LIST LEN  : {len(self.org_img_list)}   ")
-            print(f"CAPTURE FLAG    : {capture_flag}             ")
-            print(f"COMPLETE FLAG   : {img_captured}             ")
-            print("--------------------------------------        ")
                 
 
 if __name__ == "__main__" :
@@ -250,10 +269,6 @@ if __name__ == "__main__" :
             cont.move_motor()               # 모터가 한바퀴를 돌고 다시 돌아오기 전까지는 계속 구동을 진행
             
             if cont.motor_loc == 0 : break  
-            
-    except KeyboardInterrupt :              # 키보드 입력시 프로그램 종료
-        
-        print("\nPROGRAM TERMINATED BY USER ...!")
         
     finally :                               # 샘플에 대한 이미지 처리가 완료되는 경우
         
@@ -267,6 +282,6 @@ if __name__ == "__main__" :
         
         arduino.close()                     # serial 통신 종료
         
-        print("\nPROGRAM TERMINATED ...!")
+        print("\n\nPROGRAM TERMINATED ...!")
         
-        print("\nSERIAL COMMUNICATION DISCONNECTED ...!")
+        print("\nSERIAL COMMUNICATION DISCONNECTED ...!\n")
